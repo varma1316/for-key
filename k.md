@@ -2,7 +2,7 @@
 
 This document represents the complete, production-grade, DevSecOps architecture for the Hyperswitch payment platform combined with custom e-commerce microservices. 
 
-It is designed for **High Availability**, **Zero-Trust Security** (via Istio Ambient Mesh), and **Extreme Scalability** (via Event-Driven AWS Serverless components).
+It is designed for **High Availability**, **Zero-Trust Security** (via Istio Ambient Mesh), **Extreme Scalability** (via Event-Driven AWS Serverless components), and strictly follows the **Database-per-Service** microservice pattern.
 
 ## System Architecture Diagram
 
@@ -13,6 +13,7 @@ flowchart TB
         Buyer["🛒 Customer"]
         Merchant["💼 Merchant Admin"]
         Gateway["💳 Stripe / PayPal / ApplePay"]
+        EmailServer["📧 External SMTP / AWS SES"]
     end
 
     %% Edge
@@ -47,10 +48,15 @@ flowchart TB
     end
 
     %% Databases
-    subgraph Data["AWS Data Subnet (Private)"]
+    subgraph CustomData["Custom Application Databases"]
+        OrderDB[("AWS RDS Postgres<br>(ecommerce_orders)")]
+        InvDB[("AWS RDS Postgres<br>(inventory_db)")]
+    end
+
+    subgraph CoreData["Hyperswitch Core Databases"]
         Redis[("AWS ElastiCache (Redis)")]
-        DBPrimary[("AWS RDS Postgres (Primary Writer)")]
-        DBReplica[("AWS RDS Postgres (Read Replica)")]
+        DBPrimary[("AWS RDS Postgres<br>(hyperswitch_db Primary)")]
+        DBReplica[("AWS RDS Postgres<br>(hyperswitch_db Replica)")]
     end
 
     %% Flow - Frontend
@@ -67,6 +73,11 @@ flowchart TB
     Ingress -->|Checkout Requests| OrderSvc
     Ingress -->|Admin Dashboard Reads| Router
 
+    %% Flow - Custom DB Connections (DATABASE-PER-SERVICE)
+    OrderSvc <-->|Reads/Writes Orders| OrderDB
+    InvSvc <-->|Reads/Deducts Stock| InvDB
+    NotifSvc -->|Sends Emails| EmailServer
+
     %% Flow - Core Microservices
     OrderSvc -- "L7 Circuit Breaking via Ambient Waypoint" --> Router
     Router -- "Process Payment" --> Gateway
@@ -79,7 +90,7 @@ flowchart TB
     SQS1 -- "Triggers Worker" --> InvSvc
     SQS2 -- "Triggers Worker" --> NotifSvc
 
-    %% Flow - Data Persistence
+    %% Flow - Core Data Persistence
     Router <--> Redis
     Scheduler <--> Redis
     Drainer <-- "Pulls Analytics" --> Redis
@@ -113,7 +124,7 @@ To achieve massive scale (e.g., Black Friday traffic), we completely decoupled p
 *   That topic instantly fans out the message to multiple **SQS Queues**.
 *   This means if the Notification (Email) server crashes, it doesn't break the Inventory server. The email sits safely in the SQS Queue until the service comes back online.
 
-### 5. The Data Layer (CQRS Pattern)
-We implemented Command Query Responsibility Segregation (CQRS) on the databases:
-*   **Primary Database:** Handles only fast `INSERT` commands for live checkouts.
-*   **Read Replica:** When a merchant logs into the Control Center and asks for a 30-day revenue report, the Router pulls that data exclusively from the Replica, ensuring live customers never experience database lag.
+### 5. The Data Layer (Database-per-Service & CQRS)
+This architecture strictly isolates state to prevent data corruption and eliminate single points of failure:
+*   **Database-per-Service:** The `Order Service` uniquely owns the `ecommerce_orders` DB, and the `Inventory Service` uniquely owns the `inventory_db`. They never talk to each other's databases directly.
+*   **CQRS Pattern:** Inside the Hyperswitch core, we split Reads and Writes. The Primary DB handles fast `INSERT` commands for live checkouts, while the Read Replica handles heavy analytics queries for the Admin Dashboard.
