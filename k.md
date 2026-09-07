@@ -124,7 +124,4 @@ To achieve massive scale (e.g., Black Friday traffic), we completely decoupled p
 *   That topic instantly fans out the message to multiple **SQS Queues**.
 *   This means if the Notification (Email) server crashes, it doesn't break the Inventory server. The email sits safely in the SQS Queue until the service comes back online.
 
-### 5. The Data Layer (Database-per-Service & CQRS)
-This architecture strictly isolates state to prevent data corruption and eliminate single points of failure:
-*   **Database-per-Service:** The `Order Service` uniquely owns the `ecommerce_orders` DB, and the `Inventory Service` uniquely owns the `inventory_db`. They never talk to each other's databases directly.
-*   **CQRS Pattern:** Inside the Hyperswitch core, we split Reads and Writes. The Primary DB handles fast `INSERT` commands for live checkouts, while the Read Replica handles heavy analytics queries for the Admin Dashboard.
+
