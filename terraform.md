@@ -14,7 +14,7 @@ This document outlines the infrastructure architecture and CI/CD strategy for th
 ## 2. High-Level Architecture
 
 **Frontend Layer**
-- 2 frontend services, each deployed to its own S3 bucket
+- 2 frontend services, each deployed to S3 bucket
 - CloudFront distribution in front of each S3 bucket (CDN + HTTPS + caching)
 
 **Backend Layer**
@@ -38,24 +38,13 @@ This document outlines the infrastructure architecture and CI/CD strategy for th
 |---|---|
 | S3 | Static hosting for the 2 frontend apps |
 | CloudFront | CDN + HTTPS termination in front of S3 |
-| ALB | Ingress/load balancing for backend services on EKS |
+| ALB | Ingress/load balancing for backend services on EKS | (AWS ALB Controller Or ingress)
 | EKS | Kubernetes cluster hosting backend services + observability stack |
 | RDS | Managed relational database |
 | Redis (ElastiCache) | Caching / session store |
 | ECR | Docker image registry for backend services |
 
-**Note:** Confirm whether each of these will live in a separate Terraform module/state (recommended) or a single monolithic state. Suggested module split:
-```
-modules/
-  ├── networking (VPC, subnets, security groups)
-  ├── s3-cloudfront
-  ├── eks
-  ├── rds
-  ├── redis
-  ├── ecr
-  ├── alb
-  └── observability (helm releases for grafana/prometheus/loki/tempo)
-```
+
 
 ---
 
@@ -98,23 +87,12 @@ Each backend service has its own GitHub Actions pipeline, following this pattern
 | Loki | Centralized log aggregation |
 | Tempo | Distributed tracing |
 
-*(To confirm)*: Deployment method for these — Helm charts via Terraform `helm_release`, or a separate Helmfile/ArgoCD-managed layer?
+
+
 
 ---
 
-## 6. Open Items / Assumptions to Confirm
-
-- [ ] Frontend CI/CD flow assumed similar to backend (PR = CI, merge = CD) — confirm exact steps (test/build tools used)
-- [ ] Which DevSecOps tools are used in backend CI (e.g., SonarQube, Trivy, Snyk, Checkov, etc.)
-- [ ] State management: remote backend (S3 + DynamoDB lock) for Terraform state — confirm bucket/table naming
-- [ ] Environment strategy: single environment or multiple (dev/staging/prod) with separate `.tfvars` / workspaces
-- [ ] Secrets management: how DB/Redis credentials and other secrets are injected into EKS (e.g., External Secrets Operator, Sealed Secrets, AWS Secrets Manager)
-- [ ] Ingress/ALB setup: via AWS Load Balancer Controller in EKS or a standalone ALB provisioned in Terraform
-- [ ] Whether ArgoCD/Flux (GitOps) is in scope, or `kubectl` from CD pipeline is the permanent deployment mechanism
-
----
-
-## 7. Suggested Repo/Terraform Structure
+## 6.Repo/Terraform Structure
 
 ```
 infra/
