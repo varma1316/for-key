@@ -96,9 +96,6 @@ Each backend service has its own GitHub Actions pipeline, following this pattern
 
 ```
 infra/
-  ├── environments/
-  │   ├── dev/
-  │   └── prod/
   ├── modules/
   │   ├── networking/
   │   ├── s3-cloudfront/
@@ -108,5 +105,5 @@ infra/
   │   ├── redis/
   │   ├── alb/
   │   └── observability/
-  └── k8s-bootstrap/        # applied only when resources don't exist yet
+
 ```
